@@ -1,30 +1,46 @@
 version: '3.9'
 
 services:
+  # Java Backend Service
   attribution-service:
-    build:
-      context: ./backend  # Path to your Java project directory
+    build: ./backend
     ports:
       - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ctv_analytics
+      - SPRING_DATASOURCE_USERNAME=ctv_user
+      - SPRING_DATASOURCE_PASSWORD=ctv_pass123
+      - SPRING_PROFILES_ACTIVE=prod
     networks:
       - ctv-network
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-    restart: unless-stopped
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    depends_on:
+      - postgres
 
+  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    networks:
-      - ctv-network
     environment:
       POSTGRES_DB: ctv_analytics
       POSTGRES_USER: ctv_user
-      POSTGRES_PASSWORD: securepassword
+      POSTGRES_PASSWORD: ctv_pass123
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - ctv-network
 
+  # Analytics Dashboard
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_API=http://attribution-service:8081/api
+    networks:
+      - ctv-network
+    depends_on:
+      - attribution-service
+
+  # Nginx Reverse Proxy
   nginx:
     image: nginx:1.25-alpine
     ports:
@@ -36,6 +52,7 @@ services:
       - ctv-network
     depends_on:
       - attribution-service
+      - dashboard
 
 networks:
   ctv-network:
